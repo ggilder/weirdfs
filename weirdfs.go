@@ -37,7 +37,7 @@ func main() {
 			return err
 		}
 
-		if info.Mode().IsRegular() {
+		if info.Mode().IsRegular() || info.Mode().IsDir() {
 			names, err := xattr.List(path)
 			check(err)
 
