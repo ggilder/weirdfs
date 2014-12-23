@@ -13,10 +13,20 @@ var defaultIgnoredFiles = []string{
 }
 
 var defaultIgnoredXattrs = []string{
+	"com.apple.FinderInfo",
+	"com.apple.TextEncoding",
 	"com.apple.diskimages.recentcksum",
+	"com.apple.metadata:_kTimeMachineNewestSnapshot",
+	"com.apple.metadata:_kTimeMachineOldestSnapshot",
+	"com.apple.metadata:com_apple_backup_excludeItem",
+	"com.apple.metadata:kMDItemFinderComment",
+	"com.apple.metadata:kMDItemIsScreenCapture",
+	"com.apple.metadata:kMDItemScreenCaptureType",
 	"com.apple.metadata:kMDItemWhereFroms",
 	"com.apple.quarantine",
-	"com.apple.metadata:com_apple_backup_excludeItem",
+	"com.dropbox.attributes",
+	"com.macromates.bookmarked_lines",
+	"com.macromates.caret",
 }
 
 func check(err error) {
