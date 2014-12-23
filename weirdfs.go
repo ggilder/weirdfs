@@ -8,6 +8,17 @@ import (
 	"path/filepath"
 )
 
+var defaultIgnoredFiles = []string{
+	".DS_Store",
+}
+
+var defaultIgnoredXattrs = []string{
+	"com.apple.diskimages.recentcksum",
+	"com.apple.metadata:kMDItemWhereFroms",
+	"com.apple.quarantine",
+	"com.apple.metadata:com_apple_backup_excludeItem",
+}
+
 func check(err error) {
 	if err != nil {
 		panic(err)
@@ -16,6 +27,32 @@ func check(err error) {
 
 func debugMsg(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
+}
+
+func isIgnoredFile(basename string) bool {
+	for _, f := range defaultIgnoredFiles {
+		if basename == f {
+			return true
+		}
+	}
+	return false
+}
+
+func removeIgnoredXattrs(attrs []string) []string {
+	filtered := []string{}
+	for _, attr := range attrs {
+		isIgnored := false
+		for _, ignored := range defaultIgnoredXattrs {
+			if attr == ignored {
+				isIgnored = true
+				break
+			}
+		}
+		if !isIgnored {
+			filtered = append(filtered, attr)
+		}
+	}
+	return filtered
 }
 
 func main() {
@@ -37,9 +74,14 @@ func main() {
 			return err
 		}
 
+		if isIgnoredFile(filepath.Base(path)) {
+			return nil
+		}
+
 		if info.Mode().IsRegular() || info.Mode().IsDir() {
 			names, err := xattr.List(path)
 			check(err)
+			names = removeIgnoredXattrs(names)
 
 			if len(names) > 0 {
 				fmt.Println(path)
