@@ -1,8 +1,0 @@
-#!/bin/bash
-
-set -e
-
-resource_fork_size=`stat -q -f %z "$1/..namedfork/rsrc" || echo 0`
-if [ "$resource_fork_size" -gt 0 ]; then
-  echo "    Resource fork of ${resource_fork_size}B"
-fi
