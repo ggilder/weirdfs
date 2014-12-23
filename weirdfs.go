@@ -41,18 +41,10 @@ func main() {
 			names, err := xattr.List(path)
 			check(err)
 
-			rsrcPath := filepath.Join(path, "..namedfork", "rsrc")
-			rsrcStat, err := os.Stat(rsrcPath)
-			check(err)
-			rsrcSize := rsrcStat.Size()
-
-			if len(names) > 0 || rsrcSize > 0 {
+			if len(names) > 0 {
 				fmt.Println(path)
 				for _, name := range names {
 					fmt.Printf("    %s\n", name)
-				}
-				if rsrcSize > 0 {
-					fmt.Printf("    Resource fork of %dB\n", rsrcSize)
 				}
 			} else if *debug {
 				debugMsg("%s", path)
