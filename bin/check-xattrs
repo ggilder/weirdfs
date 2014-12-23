@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e
+
+xattrs=`xattr "$1"`
+if [ -n "$xattrs" ]; then
+  echo "    $xattrs"
+fi

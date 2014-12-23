@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+
+check=$($script_dir/check-xattrs "$1"; $script_dir/check-resource-fork "$1")
+
+if [ -n "$check" ]; then
+  echo $1
+  echo "$check"
+else
+  echo $1 >&2
+fi
