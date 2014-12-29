@@ -31,6 +31,11 @@ var defaultIgnoredXattrs = []string{
 	"com.macromates.caret",
 }
 
+var illegalPathnameChars = []rune{
+	':',
+	'/',
+}
+
 func check(err error) {
 	if err != nil {
 		panic(err)
@@ -86,6 +91,16 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string) (logs, warns 
 	return logs, warns
 }
 
+func checkBasename(path string) (logs, warns []string) {
+	base := filepath.Base(path)
+	for _, char := range illegalPathnameChars {
+		if strings.IndexRune(base, char) > -1 {
+			warns = append(warns, fmt.Sprintf("Name contains illegal character '%c'.", char))
+		}
+	}
+	return logs, warns
+}
+
 func log(msg, level string) {
 	fmt.Printf("    [%s] %s\n", strings.ToUpper(level), msg)
 }
@@ -129,10 +144,14 @@ func main() {
 				scannedDirs++
 			}
 
+			logs, warns := checkBasename(path)
+
 			names, err := xattr.List(path)
 			check(err)
 			names = removeIgnoredXattrs(names)
-			logs, warns := evaluateXattrs(path, info, names)
+			logs2, warns2 := evaluateXattrs(path, info, names)
+			logs = append(logs, logs2...)
+			warns = append(warns, warns2...)
 
 			if len(warns) > 0 {
 				fmt.Println(path)
