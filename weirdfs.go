@@ -67,23 +67,23 @@ func removeIgnoredXattrs(attrs []string) []string {
 	return filtered
 }
 
-func evaluateXattrs(path string, info os.FileInfo, attrs []string) (logs, warn []string) {
+func evaluateXattrs(path string, info os.FileInfo, attrs []string) (logs, warns []string) {
 	if len(attrs) > 0 {
 		logs = append(logs, fmt.Sprintf("xattrs: %s", strings.Join(attrs, ", ")))
 	}
 	for _, attr := range attrs {
 		if attr == "com.apple.ResourceFork" {
 			if filepath.Ext(path) == "" {
-				warn = append(warn, "No file extension, resource fork may contain file type.")
+				warns = append(warns, "No file extension, resource fork may contain file type.")
 			}
 			rsrc, err := xattr.Get(path, attr)
 			check(err)
 			if info.Size() == 0 {
-				warn = append(warn, fmt.Sprintf("Data fork is empty; resource fork may contain all data (%dB).", len(rsrc)))
+				warns = append(warns, fmt.Sprintf("Data fork is empty; resource fork may contain all data (%dB).", len(rsrc)))
 			}
 		}
 	}
-	return logs, warn
+	return logs, warns
 }
 
 func log(msg, level string) {
