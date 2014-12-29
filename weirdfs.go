@@ -15,6 +15,7 @@ var defaultIgnoredFiles = []string{
 
 var defaultIgnoredXattrs = []string{
 	"com.apple.FinderInfo",
+	"com.apple.Preview.UIstate.v1",
 	"com.apple.TextEncoding",
 	"com.apple.diskimages.recentcksum",
 	"com.apple.metadata:_kTimeMachineNewestSnapshot",
