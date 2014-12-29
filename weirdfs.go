@@ -6,6 +6,7 @@ import (
 	"github.com/AlekSi/xattr"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var defaultIgnoredFiles = []string{
@@ -65,6 +66,35 @@ func removeIgnoredXattrs(attrs []string) []string {
 	return filtered
 }
 
+func evaluateXattrs(path string, info os.FileInfo, attrs []string) (logs, warn []string) {
+	if len(attrs) > 0 {
+		logs = append(logs, fmt.Sprintf("xattrs: %s", strings.Join(attrs, ", ")))
+	}
+	for _, attr := range attrs {
+		if attr == "com.apple.ResourceFork" {
+			if filepath.Ext(path) == "" {
+				warn = append(warn, "No file extension, resource fork may contain file type.")
+			}
+			rsrc, err := xattr.Get(path, attr)
+			check(err)
+			if info.Size() == 0 {
+				warn = append(warn, fmt.Sprintf("Data fork is empty; resource fork may contain all data (%dB).", len(rsrc)))
+			}
+		}
+	}
+	return logs, warn
+}
+
+func log(msg, level string) {
+	fmt.Printf("    [%s] %s\n", strings.ToUpper(level), msg)
+}
+
+func logMany(msgs []string, level string) {
+	for _, msg := range msgs {
+		log(msg, level)
+	}
+}
+
 func main() {
 	debug := flag.Bool("debug", false, "debug")
 	flag.Parse()
@@ -79,6 +109,9 @@ func main() {
 		debugMsg("Scanning %s", dir)
 	}
 
+	scannedFiles := 0
+	scannedDirs := 0
+
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -89,20 +122,31 @@ func main() {
 		}
 
 		if info.Mode().IsRegular() || info.Mode().IsDir() {
+			if info.Mode().IsRegular() {
+				scannedFiles++
+			} else {
+				scannedDirs++
+			}
+
 			names, err := xattr.List(path)
 			check(err)
 			names = removeIgnoredXattrs(names)
+			logs, warns := evaluateXattrs(path, info, names)
 
-			if len(names) > 0 {
+			if len(warns) > 0 {
 				fmt.Println(path)
-				for _, name := range names {
-					fmt.Printf("    %s\n", name)
-				}
+				logMany(warns, "warn")
+				logMany(logs, "info")
 			} else if *debug {
-				debugMsg("%s", path)
+				if len(logs) > 0 {
+					debugMsg("%s", path)
+					logMany(logs, "info")
+				}
 			}
 		}
 
 		return nil
 	})
+
+	fmt.Printf("\nScanned %d directories and %d files.\n", scannedDirs, scannedFiles)
 }
