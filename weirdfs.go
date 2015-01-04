@@ -11,6 +11,19 @@ import (
 
 var defaultIgnoredFiles = []string{
 	".DS_Store",
+	// Garageband files
+	"PkgInfo",
+	"projectData",
+	// Logic files
+	"displayState",
+	"documentData",
+	// Icon with ^M at the end
+	string([]byte{0x49, 0x63, 0x6f, 0x6e, 0x0d}),
+}
+
+var defaultIgnoredPaths = []string{
+	".git",
+	".svn",
 }
 
 var defaultIgnoredXattrs = []string{
@@ -29,6 +42,18 @@ var defaultIgnoredXattrs = []string{
 	"com.dropbox.attributes",
 	"com.macromates.bookmarked_lines",
 	"com.macromates.caret",
+}
+
+var defaultAllowedNamesWithoutFileExtension = []string{
+	"CHANGELOG",
+	"Capfile",
+	"Gemfile",
+	"LICENCE",
+	"LICENSE",
+	"MIT-LICENSE",
+	"README",
+	"TODO",
+	"crontab",
 }
 
 var illegalPathnameChars = []rune{
@@ -50,6 +75,18 @@ func isIgnoredFile(basename string) bool {
 	for _, f := range defaultIgnoredFiles {
 		if basename == f {
 			return true
+		}
+	}
+	return false
+}
+
+func isIgnoredPath(path string) bool {
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		for _, ignored := range defaultIgnoredPaths {
+			if part == ignored {
+				return true
+			}
 		}
 	}
 	return false
@@ -78,24 +115,35 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string) (logs, warns 
 	}
 	for _, attr := range attrs {
 		if attr == "com.apple.ResourceFork" {
-			if filepath.Ext(path) == "" {
-				warns = append(warns, "No file extension, resource fork may contain file type.")
-			}
 			rsrc, err := xattr.Get(path, attr)
 			check(err)
 			if info.Size() == 0 {
-				warns = append(warns, fmt.Sprintf("Data fork is empty; resource fork may contain all data (%dB).", len(rsrc)))
+				warns = append(warns, fmt.Sprintf("Data fork is empty; resource fork may contain all data (%d).", len(rsrc)))
+				// } else if info.Size() < int64(len(rsrc)) {
+				// 	warns = append(warns, fmt.Sprintf("Resource fork is larger than data fork (%d vs. %d).", len(rsrc), info.Size()))
 			}
 		}
 	}
 	return logs, warns
 }
 
-func checkBasename(path string) (logs, warns []string) {
+func checkBasename(path string, info os.FileInfo) (logs, warns []string) {
 	base := filepath.Base(path)
 	for _, char := range illegalPathnameChars {
 		if strings.IndexRune(base, char) > -1 {
 			warns = append(warns, fmt.Sprintf("Name contains illegal character '%c'.", char))
+		}
+	}
+	if info.Mode().IsRegular() && filepath.Ext(path) == "" {
+		allowed := false
+		for _, name := range defaultAllowedNamesWithoutFileExtension {
+			if base == name {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			warns = append(warns, "Missing file extension.")
 		}
 	}
 	return logs, warns
@@ -137,6 +185,10 @@ func main() {
 			return nil
 		}
 
+		if isIgnoredPath(path) {
+			return nil
+		}
+
 		if info.Mode().IsRegular() || info.Mode().IsDir() {
 			if info.Mode().IsRegular() {
 				scannedFiles++
@@ -144,7 +196,7 @@ func main() {
 				scannedDirs++
 			}
 
-			logs, warns := checkBasename(path)
+			logs, warns := checkBasename(path, info)
 
 			names, err := xattr.List(path)
 			check(err)
