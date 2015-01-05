@@ -4,9 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"github.com/AlekSi/xattr"
+	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"syscall"
+	"unsafe"
 )
 
 var defaultIgnoredFiles = []string{
@@ -54,6 +60,15 @@ var defaultAllowedNamesWithoutFileExtension = []string{
 	"README",
 	"TODO",
 	"crontab",
+}
+
+var resourceForkRequired = "[WARNING] unreadable without resource fork"
+var resourceForkOld = "[WARNING] old files may require resource fork"
+var resourceForkTypeWarnings = map[string]string{
+	".mov":  resourceForkOld,
+	".psd":  resourceForkOld,
+	".sd2":  resourceForkRequired,
+	".sd2f": resourceForkRequired,
 }
 
 var illegalPathnameChars = []rune{
@@ -109,12 +124,13 @@ func removeIgnoredXattrs(attrs []string) []string {
 	return filtered
 }
 
-func evaluateXattrs(path string, info os.FileInfo, attrs []string) (logs, warns []string) {
+func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[string]int) (logs, warns []string) {
 	if len(attrs) > 0 {
 		logs = append(logs, fmt.Sprintf("xattrs: %s", strings.Join(attrs, ", ")))
 	}
 	for _, attr := range attrs {
 		if attr == "com.apple.ResourceFork" {
+			(*report)[strings.ToLower(filepath.Ext(path))]++
 			rsrc, err := xattr.Get(path, attr)
 			check(err)
 			if info.Size() == 0 {
@@ -149,6 +165,33 @@ func checkBasename(path string, info os.FileInfo) (logs, warns []string) {
 	return logs, warns
 }
 
+func copyStrippedFile(path string, info os.FileInfo, attrs []string, dest string, ignoredExtensions []string) ([]string, int) {
+	logs := []string{}
+	count := 0
+	for _, attr := range attrs {
+		if attr == "com.apple.ResourceFork" {
+			fileExt := strings.ToLower(filepath.Ext(path))
+			for _, ext := range ignoredExtensions {
+				if fileExt == ext {
+					return logs, count
+				}
+			}
+			rsrc, err := xattr.Get(path, attr)
+			if err != nil || len(rsrc) == 0 {
+				return logs, count
+			}
+
+			destPath := filepath.Join(dest, strings.Replace(path, "/", "__", -1))
+			data, err := ioutil.ReadFile(path)
+			check(err)
+			err = ioutil.WriteFile(destPath, data, 0644)
+			check(err)
+			return append(logs, fmt.Sprintf("Copied data-only version to %s", destPath)), 1
+		}
+	}
+	return logs, count
+}
+
 func log(msg, level string) {
 	fmt.Printf("    [%s] %s\n", strings.ToUpper(level), msg)
 }
@@ -159,8 +202,33 @@ func logMany(msgs []string, level string) {
 	}
 }
 
+func printStatusLine(msg string) {
+	var dimensions [4]uint16
+
+	// probably not very efficient to make this syscall every time but oh well!
+	if _, _, err := syscall.Syscall6(
+		syscall.SYS_IOCTL,
+		uintptr(syscall.Stdin),
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(&dimensions)),
+		0,
+		0,
+		0,
+	); err != 0 {
+		// ignore error
+		return
+	}
+
+	width := int(dimensions[1])
+	// pad to width if shorter, then truncate if longer
+	msg = fmt.Sprintf("%- "+strconv.Itoa(width)+"s", msg)
+	fmt.Printf("%s\r", msg[:width-1])
+}
+
 func main() {
-	debug := flag.Bool("debug", false, "debug")
+	debug := flag.Bool("debug", false, "Output extra debugging info")
+	stripResourceForks := flag.Bool("stripResourceForks", false, "Make a data-only copy of files with resource forks for manual analysis")
+	stripResourceSkip := flag.String("stripResourceSkip", "", "Comma-separated list of file extensions to exclude from manual analysis, e.g. 'crw,jpg'")
 	flag.Parse()
 
 	dir := flag.Arg(0)
@@ -169,27 +237,61 @@ func main() {
 		dir, err = os.Getwd()
 		check(err)
 	}
+
+	var strippedDir string = ""
+	stripResourceIgnoredExtensions := []string{}
+	strippedFilesCount := 0
+	if *stripResourceForks {
+		usr, err := user.Current()
+		check(err)
+		strippedDir, err = ioutil.TempDir(usr.HomeDir, "stripped_files")
+		check(err)
+		for _, ext := range strings.Split(*stripResourceSkip, ",") {
+			ext := strings.TrimSpace(strings.ToLower(ext))
+			if ext == "" {
+				continue
+			}
+			if string([]rune(ext)[0]) != "." {
+				ext = "." + ext
+			}
+			stripResourceIgnoredExtensions = append(stripResourceIgnoredExtensions, ext)
+		}
+	}
+
 	if *debug {
 		debugMsg("Scanning %s", dir)
+		if *stripResourceForks {
+			debugMsg("Copying data forks to %s for analyis", strippedDir)
+			if len(stripResourceIgnoredExtensions) > 0 {
+				debugMsg("Ignoring extensions: %v", stripResourceIgnoredExtensions)
+			}
+		}
 	}
 
 	scannedFiles := 0
 	scannedDirs := 0
+	resourceForkTypes := map[string]int{}
+	rawScanned := 0
 
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		rawScanned++
 		if err != nil {
 			return err
 		}
 
 		if isIgnoredFile(filepath.Base(path)) {
+			printStatusLine(fmt.Sprintf("%d: (ignored file)", rawScanned))
 			return nil
 		}
 
 		if isIgnoredPath(path) {
+			printStatusLine(fmt.Sprintf("%d: (ignored path)", rawScanned))
 			return nil
 		}
 
 		if info.Mode().IsRegular() || info.Mode().IsDir() {
+			printStatusLine(fmt.Sprintf("%d: %s", rawScanned, path))
+
 			if info.Mode().IsRegular() {
 				scannedFiles++
 			} else {
@@ -201,9 +303,15 @@ func main() {
 			names, err := xattr.List(path)
 			check(err)
 			names = removeIgnoredXattrs(names)
-			logs2, warns2 := evaluateXattrs(path, info, names)
+			logs2, warns2 := evaluateXattrs(path, info, names, &resourceForkTypes)
 			logs = append(logs, logs2...)
 			warns = append(warns, warns2...)
+
+			if *stripResourceForks {
+				logs2, copied := copyStrippedFile(path, info, names, strippedDir, stripResourceIgnoredExtensions)
+				strippedFilesCount += copied
+				logs = append(logs, logs2...)
+			}
 
 			if len(warns) > 0 {
 				fmt.Println(path)
@@ -215,10 +323,31 @@ func main() {
 					logMany(logs, "info")
 				}
 			}
+
 		}
 
 		return nil
 	})
 
+	// clear status line
+	printStatusLine("")
 	fmt.Printf("\nScanned %d directories and %d files.\n", scannedDirs, scannedFiles)
+	if len(resourceForkTypes) > 0 {
+		fmt.Println("\nTypes with resource forks (lowercased):")
+		exts := make([]string, len(resourceForkTypes))
+		i := 0
+		for ext, _ := range resourceForkTypes {
+			exts[i] = ext
+			i++
+		}
+		sort.Strings(exts)
+		for _, ext := range exts {
+			count := resourceForkTypes[ext]
+			warning := resourceForkTypeWarnings[ext]
+			fmt.Printf("    %s: %d   %s\n", ext, count, warning)
+		}
+	}
+	if *stripResourceForks {
+		fmt.Printf("\nStripped resource forks from %d files in %s for analysis.\n", strippedFilesCount, strippedDir)
+	}
 }
