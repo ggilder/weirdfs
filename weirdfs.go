@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -229,6 +230,7 @@ func main() {
 	debug := flag.Bool("debug", false, "Output extra debugging info")
 	stripResourceForks := flag.Bool("stripResourceForks", false, "Make a data-only copy of files with resource forks for manual analysis")
 	stripResourceSkip := flag.String("stripResourceSkip", "", "Comma-separated list of file extensions to exclude from manual analysis, e.g. 'crw,jpg'")
+	warnOnCreationTimes := flag.Bool("warnOnCreationTimes", false, "Print warnings on files with creation times that vary from modification times by more than 1 day")
 	flag.Parse()
 
 	dir := flag.Arg(0)
@@ -313,12 +315,22 @@ func main() {
 				logs = append(logs, logs2...)
 			}
 
+			if *warnOnCreationTimes {
+				stat := info.Sys().(*syscall.Stat_t)
+				birthtime := time.Unix(stat.Birthtimespec.Sec, stat.Birthtimespec.Nsec)
+				if info.ModTime().Sub(birthtime).Hours() > 24 {
+					warns = append(warns, fmt.Sprintf("Significant creation time: %v vs. %v", birthtime, info.ModTime()))
+				}
+			}
+
 			if len(warns) > 0 {
+				printStatusLine("")
 				fmt.Println(path)
 				logMany(warns, "warn")
 				logMany(logs, "info")
 			} else if *debug {
 				if len(logs) > 0 {
+					printStatusLine("")
 					debugMsg("%s", path)
 					logMany(logs, "info")
 				}
