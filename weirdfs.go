@@ -136,8 +136,6 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[s
 			check(err)
 			if info.Size() == 0 {
 				warns = append(warns, fmt.Sprintf("Data fork is empty; resource fork may contain all data (%d).", len(rsrc)))
-				// } else if info.Size() < int64(len(rsrc)) {
-				// 	warns = append(warns, fmt.Sprintf("Resource fork is larger than data fork (%d vs. %d).", len(rsrc), info.Size()))
 			}
 		}
 	}
