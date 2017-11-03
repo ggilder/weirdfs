@@ -136,7 +136,11 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[s
 	}
 	for _, attr := range attrs {
 		if attr == "com.apple.ResourceFork" {
-			(*report)[strings.ToLower(filepath.Ext(path))]++
+			ext := strings.ToLower(filepath.Ext(path))
+			if ext == "" {
+				ext = "(no extension)"
+			}
+			(*report)[ext]++
 			rsrc, err := xattr.Get(path, attr)
 			check(err)
 			if info.Size() == 0 {
