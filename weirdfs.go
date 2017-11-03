@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 	"unsafe"
 )
 
@@ -80,6 +81,12 @@ var resourceForkTypeWarnings = map[string]string{
 var illegalPathnameChars = []rune{
 	':',
 	'/',
+	'\\',
+}
+
+var illegalTrailingChars = []rune{
+	'.',
+	' ',
 }
 
 func check(err error) {
@@ -156,6 +163,12 @@ func checkBasename(path string, info os.FileInfo) (logs, warns []string) {
 	for _, char := range illegalPathnameChars {
 		if strings.IndexRune(base, char) > -1 {
 			warns = append(warns, fmt.Sprintf("Name contains illegal character '%c'.", char))
+		}
+	}
+	lastRune, _ := utf8.DecodeLastRuneInString(base)
+	for _, illegalRune := range illegalTrailingChars {
+		if lastRune == illegalRune {
+			warns = append(warns, fmt.Sprintf("Name ends with illegal character '%c'.", illegalRune))
 		}
 	}
 	if info.Mode().IsRegular() && filepath.Ext(path) == "" {
