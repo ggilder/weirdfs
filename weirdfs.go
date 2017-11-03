@@ -31,6 +31,9 @@ var defaultIgnoredFiles = []string{
 var defaultIgnoredPaths = []string{
 	".git",
 	".svn",
+	".fseventsd",
+	".Trashes",
+	".Spotlight-V100",
 }
 
 var defaultIgnoredXattrs = []string{
@@ -61,6 +64,8 @@ var defaultAllowedNamesWithoutFileExtension = []string{
 	"README",
 	"TODO",
 	"crontab",
+	"Desktop DB",
+	"Desktop DF",
 }
 
 var resourceForkRequired = "[WARNING] unreadable without resource fork"
