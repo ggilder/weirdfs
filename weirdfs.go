@@ -281,13 +281,12 @@ func main() {
 	scannedDirs := 0
 	resourceForkTypes := map[string]int{}
 	rawScanned := 0
+	scanErrors := 0
 
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		rawScanned++
-		if err != nil {
-			return err
-		}
 
+		// Check ignored list before errors to avoid reporting errors on stuff we would ignore anyway
 		if isIgnoredFile(filepath.Base(path)) {
 			printStatusLine(fmt.Sprintf("%d: (ignored file)", rawScanned))
 			return nil
@@ -295,6 +294,14 @@ func main() {
 
 		if isIgnoredPath(path) {
 			printStatusLine(fmt.Sprintf("%d: (ignored path)", rawScanned))
+			return nil
+		}
+
+		if err != nil {
+			scanErrors++
+			printStatusLine("")
+			fmt.Println(path)
+			log(err.Error(), "error")
 			return nil
 		}
 
@@ -308,9 +315,13 @@ func main() {
 			}
 
 			logs, warns := checkBasename(path, info)
+			errors := []string{}
 
 			names, err := xattr.List(path)
-			check(err)
+			if err != nil {
+				errors = append(errors, err.Error())
+			}
+
 			names = removeIgnoredXattrs(names)
 			logs2, warns2 := evaluateXattrs(path, info, names, &resourceForkTypes)
 			logs = append(logs, logs2...)
@@ -330,9 +341,10 @@ func main() {
 				}
 			}
 
-			if len(warns) > 0 {
+			if len(warns) > 0 || len(errors) > 0 {
 				printStatusLine("")
 				fmt.Println(path)
+				logMany(errors, "error")
 				logMany(warns, "warn")
 				logMany(logs, "info")
 			} else if *debug {
@@ -348,9 +360,11 @@ func main() {
 		return nil
 	})
 
+	check(err)
+
 	// clear status line
 	printStatusLine("")
-	fmt.Printf("\nScanned %d directories and %d files.\n", scannedDirs, scannedFiles)
+	fmt.Printf("\nScanned %d directories and %d files. %d scan errors.\n", scannedDirs, scannedFiles, scanErrors)
 	if len(resourceForkTypes) > 0 {
 		fmt.Println("\nTypes with resource forks (lowercased):")
 		exts := make([]string, len(resourceForkTypes))
