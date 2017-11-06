@@ -189,14 +189,14 @@ func checkBasename(path string, info os.FileInfo) (logs, warns []string) {
 func copyStrippedFile(path string, info os.FileInfo, attrs []string, dest string, ignoredExtensions []string) ([]string, int) {
 	logs := []string{}
 	count := 0
+	fileExt := strings.ToLower(filepath.Ext(path))
+	for _, ext := range ignoredExtensions {
+		if fileExt == ext {
+			return logs, count
+		}
+	}
 	for _, attr := range attrs {
 		if attr == "com.apple.ResourceFork" {
-			fileExt := strings.ToLower(filepath.Ext(path))
-			for _, ext := range ignoredExtensions {
-				if fileExt == ext {
-					return logs, count
-				}
-			}
 			rsrc, err := xattr.Get(path, attr)
 			if err != nil || len(rsrc) == 0 {
 				return logs, count
