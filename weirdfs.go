@@ -72,6 +72,7 @@ var defaultAllowedNamesWithoutFileExtension = []string{
 var resourceForkRequired = "[WARNING] unreadable without resource fork"
 var resourceForkOld = "[WARNING] old files may require resource fork"
 var resourceForkTypeWarnings = map[string]string{
+	".disc": resourceForkRequired,
 	".mov":  resourceForkOld,
 	".psd":  resourceForkOld,
 	".sd2":  resourceForkRequired,
