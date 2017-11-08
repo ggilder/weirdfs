@@ -67,6 +67,9 @@ var defaultAllowedNamesWithoutFileExtension = []string{
 	"crontab",
 	"Desktop DB",
 	"Desktop DF",
+	// From old DVD Studio Pro projects
+	"ModuleDataB",
+	"ObjectDataB",
 }
 
 var resourceForkRequired = "[WARNING] unreadable without resource fork"
