@@ -147,15 +147,17 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[s
 	}
 	for _, attr := range attrs {
 		if attr == "com.apple.ResourceFork" {
-			ext := strings.ToLower(filepath.Ext(path))
-			if ext == "" {
-				ext = "(no extension)"
-			}
-			(*report)[ext]++
 			rsrc, err := xattr.Get(path, attr)
 			check(err)
-			if info.Size() == 0 {
-				warns = append(warns, fmt.Sprintf("Data fork is empty; resource fork may contain all data (%d).", len(rsrc)))
+			if len(rsrc) > 0 {
+				ext := strings.ToLower(filepath.Ext(path))
+				if ext == "" {
+					ext = "(no extension)"
+				}
+				(*report)[ext]++
+				if info.Size() == 0 {
+					warns = append(warns, fmt.Sprintf("Data fork is empty; resource fork may contain all data (%d).", len(rsrc)))
+				}
 			}
 		}
 	}
