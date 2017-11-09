@@ -249,7 +249,7 @@ func printStatusLine(msg string) {
 	width := int(dimensions[1])
 	// pad to width if shorter, then truncate if longer
 	msg = fmt.Sprintf("%- "+strconv.Itoa(width)+"s", msg)
-	fmt.Printf("%s\r", msg[:width-1])
+	fmt.Fprintf(os.Stderr, "%s\r", msg[:width-1])
 }
 
 func main() {
