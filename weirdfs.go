@@ -265,6 +265,10 @@ func main() {
 		dir, err = os.Getwd()
 		check(err)
 	}
+	dir, err = filepath.Abs(dir)
+	check(err)
+
+	fmt.Printf("Scanning %s\n", dir)
 
 	var strippedDir string = ""
 	stripResourceIgnoredExtensions := []string{}
