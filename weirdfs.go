@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -103,6 +104,16 @@ func debugMsg(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 }
 
+func strictFileExtension(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	matched, _ := regexp.MatchString("^\\.[a-z0-9]+$", ext)
+	if !matched {
+		return ""
+	}
+
+	return ext
+}
+
 func isIgnoredFile(basename string) bool {
 	for _, f := range defaultIgnoredFiles {
 		if basename == f {
@@ -150,7 +161,7 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[s
 			rsrc, err := xattr.Get(path, attr)
 			check(err)
 			if len(rsrc) > 0 {
-				ext := strings.ToLower(filepath.Ext(path))
+				ext := strictFileExtension(path)
 				if ext == "" {
 					ext = "(no extension)"
 				}
@@ -177,7 +188,7 @@ func checkBasename(path string, info os.FileInfo) (logs, warns []string) {
 			warns = append(warns, fmt.Sprintf("Name ends with illegal character '%c'.", illegalRune))
 		}
 	}
-	if info.Mode().IsRegular() && filepath.Ext(path) == "" {
+	if info.Mode().IsRegular() && strictFileExtension(path) == "" {
 		allowed := false
 		for _, name := range defaultAllowedNamesWithoutFileExtension {
 			if base == name {
@@ -195,7 +206,7 @@ func checkBasename(path string, info os.FileInfo) (logs, warns []string) {
 func copyStrippedFile(path string, info os.FileInfo, attrs []string, dest string, ignoredExtensions []string) ([]string, int) {
 	logs := []string{}
 	count := 0
-	fileExt := strings.ToLower(filepath.Ext(path))
+	fileExt := strictFileExtension(path)
 	for _, ext := range ignoredExtensions {
 		if fileExt == ext {
 			return logs, count
@@ -303,6 +314,7 @@ func main() {
 	scannedFiles := 0
 	scannedDirs := 0
 	resourceForkTypes := map[string]int{}
+	fileExtensions := map[string]bool{}
 	rawScanned := 0
 	scanErrors := 0
 
@@ -333,6 +345,7 @@ func main() {
 
 			if info.Mode().IsRegular() {
 				scannedFiles++
+				fileExtensions[strictFileExtension(path)] = true
 			} else {
 				scannedDirs++
 			}
@@ -405,5 +418,16 @@ func main() {
 	}
 	if *stripResourceForks {
 		fmt.Printf("\nStripped resource forks from %d files in %s for analysis.\n", strippedFilesCount, strippedDir)
+	}
+	if len(fileExtensions) > 0 {
+		fmt.Println("\nFile extensions encountered (lowercased):")
+		exts := make([]string, len(fileExtensions))
+		i := 0
+		for ext, _ := range fileExtensions {
+			exts[i] = ext
+			i++
+		}
+		sort.Strings(exts)
+		fmt.Println(strings.TrimSpace(strings.Join(exts, " ")))
 	}
 }
