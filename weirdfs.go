@@ -94,6 +94,8 @@ var illegalTrailingChars = []rune{
 	' ',
 }
 
+var validFileExtension = regexp.MustCompile("^\\.[a-z0-9]+$")
+
 func check(err error) {
 	if err != nil {
 		panic(err)
@@ -106,8 +108,7 @@ func debugMsg(format string, args ...interface{}) {
 
 func strictFileExtension(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
-	matched, _ := regexp.MatchString("^\\.[a-z0-9]+$", ext)
-	if !matched {
+	if !validFileExtension.MatchString(ext) {
 		return ""
 	}
 
