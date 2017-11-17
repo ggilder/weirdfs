@@ -6,6 +6,7 @@ import (
 	"github.com/AlekSi/xattr"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -94,6 +95,7 @@ var illegalTrailingChars = []rune{
 	' ',
 }
 
+var derezResourceType = regexp.MustCompile("(?m:^data '(.{4})')")
 var validFileExtension = regexp.MustCompile("^\\.[a-z0-9]+$")
 
 func check(err error) {
@@ -104,6 +106,20 @@ func check(err error) {
 
 func debugMsg(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
+}
+
+func uniqueStrings(input []string) []string {
+	u := make([]string, 0, len(input))
+	m := make(map[string]bool)
+
+	for _, val := range input {
+		if _, ok := m[val]; !ok {
+			m[val] = true
+			u = append(u, val)
+		}
+	}
+
+	return u
 }
 
 func strictFileExtension(path string) string {
@@ -153,7 +169,7 @@ func removeIgnoredXattrs(attrs []string) []string {
 	return filtered
 }
 
-func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[string]int) (logs, warns []string) {
+func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[string]int, resourceReport *map[string][]string) (logs, warns []string) {
 	if len(attrs) > 0 {
 		logs = append(logs, fmt.Sprintf("xattrs: %s", strings.Join(attrs, ", ")))
 	}
@@ -161,12 +177,14 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[s
 		if attr == "com.apple.ResourceFork" {
 			rsrc, err := xattr.Get(path, attr)
 			check(err)
-			if len(rsrc) > 0 {
+			resourceTypes := extractResourceTypes(path)
+			if len(resourceTypes) > 0 {
 				ext := strictFileExtension(path)
 				if ext == "" {
 					ext = "(no extension)"
 				}
 				(*report)[ext]++
+				(*resourceReport)[ext] = uniqueStrings(append((*resourceReport)[ext], resourceTypes...))
 				if info.Size() == 0 {
 					warns = append(warns, fmt.Sprintf("Data fork is empty; resource fork may contain all data (%d).", len(rsrc)))
 				}
@@ -174,6 +192,26 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[s
 		}
 	}
 	return logs, warns
+}
+
+func extractResourceTypes(path string) []string {
+	cmdOut, err := exec.Command("DeRez", path).Output()
+	check(err)
+	out := string(cmdOut)
+	matches := derezResourceType.FindAllStringSubmatch(out, -1)
+	resources := make(map[string]struct{})
+	for _, match := range matches {
+		kind := match[1]
+		resources[kind] = struct{}{}
+	}
+	resourceTypes := make([]string, len(resources))
+	i := 0
+	for kind := range resources {
+		resourceTypes[i] = kind
+		i++
+	}
+	sort.Strings(resourceTypes)
+	return resourceTypes
 }
 
 func checkBasename(path string, info os.FileInfo) (logs, warns []string) {
@@ -315,6 +353,7 @@ func main() {
 	scannedFiles := 0
 	scannedDirs := 0
 	resourceForkTypes := map[string]int{}
+	resourcesByType := make(map[string][]string)
 	fileExtensions := map[string]bool{}
 	rawScanned := 0
 	scanErrors := 0
@@ -354,18 +393,18 @@ func main() {
 			logs, warns := checkBasename(path, info)
 			errors := []string{}
 
-			names, err := xattr.List(path)
+			xattrNames, err := xattr.List(path)
 			if err != nil {
 				errors = append(errors, err.Error())
 			}
 
-			names = removeIgnoredXattrs(names)
-			logs2, warns2 := evaluateXattrs(path, info, names, &resourceForkTypes)
+			xattrNames = removeIgnoredXattrs(xattrNames)
+			logs2, warns2 := evaluateXattrs(path, info, xattrNames, &resourceForkTypes, &resourcesByType)
 			logs = append(logs, logs2...)
 			warns = append(warns, warns2...)
 
 			if *stripResourceForks {
-				logs2, copied := copyStrippedFile(path, info, names, strippedDir, stripResourceIgnoredExtensions)
+				logs2, copied := copyStrippedFile(path, info, xattrNames, strippedDir, stripResourceIgnoredExtensions)
 				strippedFilesCount += copied
 				logs = append(logs, logs2...)
 			}
@@ -414,7 +453,9 @@ func main() {
 		for _, ext := range exts {
 			count := resourceForkTypes[ext]
 			warning := resourceForkTypeWarnings[ext]
-			fmt.Printf("    %s: %d   %s\n", ext, count, warning)
+			sort.Strings(resourcesByType[ext])
+			types := "'" + strings.Join(resourcesByType[ext], "', '") + "'"
+			fmt.Printf("    %s: %d (%s)   %s\n", ext, count, types, warning)
 		}
 	}
 	if *stripResourceForks {
