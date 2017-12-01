@@ -96,7 +96,9 @@ var illegalTrailingChars = []rune{
 }
 
 var derezResourceType = regexp.MustCompile("(?m:^data '(.{4})')")
-var validFileExtension = regexp.MustCompile("^\\.[a-z0-9]+$")
+
+// Added pi symbol for old RealBasic files
+var validFileExtension = regexp.MustCompile("^\\.[a-z0-9π]+$")
 
 func check(err error) {
 	if err != nil {
