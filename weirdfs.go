@@ -77,11 +77,12 @@ var defaultAllowedNamesWithoutFileExtension = []string{
 var resourceForkRequired = "[WARNING] unreadable without resource fork"
 var resourceForkOld = "[WARNING] old files may require resource fork"
 var resourceForkTypeWarnings = map[string]string{
-	".disc": resourceForkRequired,
-	".mov":  resourceForkOld, // TODO are there really MOV files that require resource fork?
-	".psd":  resourceForkOld, // TODO are there really PSD files that require resource fork?
-	".sd2":  resourceForkRequired,
-	".sd2f": resourceForkRequired,
+	".disc":         resourceForkRequired,
+	".mov":          resourceForkOld, // TODO are there really MOV files that require resource fork?
+	".psd":          resourceForkOld, // TODO are there really PSD files that require resource fork?
+	".sd2":          resourceForkRequired,
+	".sd2f":         resourceForkRequired,
+	".textclipping": resourceForkRequired,
 }
 
 var illegalPathnameChars = []rune{
