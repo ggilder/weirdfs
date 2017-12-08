@@ -217,7 +217,7 @@ func extractResourceTypes(path string) []string {
 	return resourceTypes
 }
 
-func checkBasename(path string, info os.FileInfo) (logs, warns []string) {
+func checkBasename(path string, info os.FileInfo, allowTextMissingExtension bool) (logs, warns []string) {
 	base := filepath.Base(path)
 	for _, char := range illegalPathnameChars {
 		if strings.IndexRune(base, char) > -1 {
@@ -231,18 +231,29 @@ func checkBasename(path string, info os.FileInfo) (logs, warns []string) {
 		}
 	}
 	if info.Mode().IsRegular() && strictFileExtension(path) == "" {
-		allowed := false
 		for _, name := range defaultAllowedNamesWithoutFileExtension {
 			if base == name {
-				allowed = true
-				break
+				return logs, warns
 			}
 		}
-		if !allowed {
-			warns = append(warns, "Missing file extension.")
+		if allowTextMissingExtension && isPlainTextFile(path) {
+			return logs, warns
 		}
+		warns = append(warns, "Missing file extension.")
 	}
 	return logs, warns
+}
+
+func isPlainTextFile(path string) bool {
+	cmdOut, err := exec.Command("file", "-b", path).Output()
+	check(err)
+	out := string(cmdOut)
+	if out == "empty\n" {
+		return true
+	}
+	matched, err := regexp.MatchString("\\b((ASCII|Unicode|ISO-8859) text|very short file)\\b", out)
+	check(err)
+	return matched
 }
 
 func copyStrippedFile(path string, info os.FileInfo, attrs []string, dest string, ignoredExtensions []string) ([]string, int) {
@@ -310,6 +321,7 @@ func main() {
 	stripResourceForks := flag.Bool("stripResourceForks", false, "Make a data-only copy of files with resource forks for manual analysis")
 	stripResourceSkip := flag.String("stripResourceSkip", "", "Comma-separated list of file extensions to exclude from manual analysis, e.g. 'crw,jpg'")
 	warnOnCreationTimes := flag.Bool("warnOnCreationTimes", false, "Print warnings on files with creation times that vary from modification times by more than 1 day")
+	allowTextMissingExtension := flag.Bool("allowTextMissingExtension", false, "Allow plain text files without file extension")
 	flag.Parse()
 
 	dir := flag.Arg(0)
@@ -393,7 +405,7 @@ func main() {
 				scannedDirs++
 			}
 
-			logs, warns := checkBasename(path, info)
+			logs, warns := checkBasename(path, info, *allowTextMissingExtension)
 			errors := []string{}
 
 			xattrNames, err := xattr.List(path)
