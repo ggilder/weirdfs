@@ -374,6 +374,9 @@ func main() {
 	scanErrors := 0
 
 	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if *debug {
+			debugMsg("Scanning %s", path)
+		}
 		rawScanned++
 
 		// Check ignored list before errors to avoid reporting errors on stuff we would ignore anyway
@@ -445,7 +448,6 @@ func main() {
 					logMany(logs, "info")
 				}
 			}
-
 		}
 
 		return nil
