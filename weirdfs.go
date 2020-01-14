@@ -55,17 +55,22 @@ var defaultIgnoredXattrs = []string{
 	"com.dropbox.attributes",
 	"com.macromates.bookmarked_lines",
 	"com.macromates.caret",
+	"com.dropbox.attrs",
 }
 
 var defaultAllowedNamesWithoutFileExtension = []string{
-	"CHANGELOG",
 	"Capfile",
 	"Gemfile",
+	"Rakefile",
+	"Procfile",
+	"CHANGELOG",
 	"LICENCE",
 	"LICENSE",
 	"MIT-LICENSE",
 	"README",
 	"TODO",
+	"VERSION",
+	"INSTALL",
 	"crontab",
 	"Desktop DB",
 	"Desktop DF",
@@ -99,7 +104,7 @@ var illegalTrailingChars = []rune{
 var derezResourceType = regexp.MustCompile("(?m:^data '(.{4})')")
 
 // Added pi symbol for old RealBasic and GoLive files
-var validFileExtension = regexp.MustCompile("^\\.[a-z0-9π]+$")
+var validFileExtension = regexp.MustCompile("^\\.[a-z0-9π\\-]+$")
 
 func check(err error) {
 	if err != nil {
