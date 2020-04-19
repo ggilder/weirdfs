@@ -184,8 +184,13 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[s
 	for _, attr := range attrs {
 		if attr == "com.apple.ResourceFork" {
 			rsrc, err := xattr.Get(path, attr)
-			check(err)
-			resourceTypes := extractResourceTypes(path)
+			if err != nil {
+				warns = append(warns, fmt.Sprintf("Error: %s", err))
+			}
+			resourceTypes, err := extractResourceTypes(path)
+			if err != nil {
+				warns = append(warns, fmt.Sprintf("Error: %s", err))
+			}
 			if len(resourceTypes) > 0 {
 				ext := strictFileExtension(path)
 				if ext == "" {
@@ -202,9 +207,11 @@ func evaluateXattrs(path string, info os.FileInfo, attrs []string, report *map[s
 	return logs, warns
 }
 
-func extractResourceTypes(path string) []string {
+func extractResourceTypes(path string) ([]string, error) {
 	cmdOut, err := exec.Command("DeRez", path).Output()
-	check(err)
+	if err != nil {
+		return nil, err
+	}
 	out := string(cmdOut)
 	matches := derezResourceType.FindAllStringSubmatch(out, -1)
 	resources := make(map[string]struct{})
@@ -219,7 +226,7 @@ func extractResourceTypes(path string) []string {
 		i++
 	}
 	sort.Strings(resourceTypes)
-	return resourceTypes
+	return resourceTypes, nil
 }
 
 func checkBasename(path string, info os.FileInfo, allowTextMissingExtension bool) (logs, warns []string) {
