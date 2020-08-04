@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/AlekSi/xattr"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -17,6 +16,8 @@ import (
 	"time"
 	"unicode/utf8"
 	"unsafe"
+
+	"github.com/pkg/xattr"
 )
 
 var defaultIgnoredFiles = []string{
